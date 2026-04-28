@@ -1,0 +1,36 @@
+name: Run Scraper
+
+on:
+  schedule:
+    - cron: '0 */6 * * *' # Every 6 hours
+  workflow_dispatch: # Allow manual triggering
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run scraper
+      run: |
+        python scraper.py
+
+    - name: Upload trends_output.json as artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: trends-output
+        path: trends_output.json
+        retention-days: 7
