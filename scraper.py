@@ -1,9 +1,11 @@
 import asyncio
 import json
 import random
+import os
 from bs4 import BeautifulSoup
 import httpx
 import logging
+from supabase import create_client, Client
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -87,7 +89,15 @@ def parse_html(html: str) -> list:
 
 async def main():
     subreddits = ["sidehustle", "SaaS"]
-    all_trends = {}
+
+    supabase_url: str = os.environ.get("SUPABASE_URL")
+    supabase_key: str = os.environ.get("SUPABASE_KEY")
+    
+    if not supabase_url or not supabase_key:
+        logging.error("Supabase credentials not found in environment variables.")
+        return
+
+    supabase: Client = create_client(supabase_url, supabase_key)
 
     # HTTP/2 support is crucial for modern scraping
     async with httpx.AsyncClient(http2=True) as client:
@@ -95,14 +105,28 @@ async def main():
             logging.info(f"Fetching data for r/{subreddit}...")
             html = await fetch_reddit_page(client, subreddit)
             data = parse_html(html)
-            all_trends[subreddit] = data
+            
+            if data:
+                # Prepare records for Supabase
+                records = []
+                for item in data:
+                    records.append({
+                        "post_title": item["title"],
+                        "engagement_score": item["upvotes"],
+                        "source_platform": "reddit",
+                        "target_niche": subreddit
+                    })
+                
+                try:
+                    supabase.table("raw_market_signals").insert(records).execute()
+                    logging.info(f"Inserted {len(records)} records for r/{subreddit} into Supabase.")
+                except Exception as e:
+                    logging.error(f"Failed to insert records for r/{subreddit}: {e}")
             
             # Random delay to mimic human behavior
             await asyncio.sleep(random.uniform(1.5, 3.5))
 
-    with open("trends_output.json", "w", encoding="utf-8") as f:
-        json.dump(all_trends, f, indent=4, ensure_ascii=False)
-    logging.info("Successfully saved trends to trends_output.json")
+    logging.info("Scraping and ingestion complete.")
 
 if __name__ == "__main__":
     asyncio.run(main())

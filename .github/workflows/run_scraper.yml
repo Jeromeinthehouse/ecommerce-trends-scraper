@@ -25,12 +25,8 @@ jobs:
         pip install -r requirements.txt
 
     - name: Run scraper
+      env:
+        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+        SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
       run: |
         python scraper.py
-
-    - name: Upload trends_output.json as artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: trends-output
-        path: trends_output.json
-        retention-days: 7
